@@ -1,0 +1,9 @@
+{
+  "name": "SmartClass Buddy",
+  "short_name": "SmartClass",
+  "description": "Offline-first STEM learning for school students.",
+  "start_url": "/",
+  "display": "standalone",
+  "lang": "en",
+  "categories": ["education"]
+}

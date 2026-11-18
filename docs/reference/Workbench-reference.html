@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SmartClass Buddy · Workbench reference</title><link rel="stylesheet" href="../../apps/web/src/styles/smartclass-design-system.css">
+<style>
+:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:var(--fs-body)/1.45 var(--font);touch-action:manipulation}
+main{max-width:780px;margin:0 auto;padding:14px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.top h1{font-size:var(--fs-h3);margin:0;text-wrap:balance}
+.stars{display:flex;gap:6px;font-size:var(--fs-h2)}.stars span{opacity:.25;transition:opacity .3s,transform .3s}.stars .on{opacity:1;transform:scale(1.15)}
+.goal{background:var(--surface);border:var(--bw) solid var(--ink);border-radius:var(--r-md);padding:10px 14px;margin:12px 0;display:flex;gap:10px;align-items:center}
+.goal b{color:var(--teal)}
+.board{background:var(--surface);border:var(--bw) solid var(--ink);border-radius:var(--r-lg);box-shadow:var(--depth-lg);overflow:hidden;position:relative}
+svg{display:block;width:100%;height:auto;touch-action:none}
+.tray{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 12px}
+.tray button{min-height:72px;border:var(--bw) solid var(--ink);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--depth);font:inherit;font-weight:700;touch-action:none;cursor:grab;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.tray button:active{transform:translateY(3px);box-shadow:var(--depth-pressed)}
+.spark{display:flex;gap:12px;align-items:flex-start;background:var(--spark-soft);border:var(--bw) solid var(--ink);border-radius:var(--r-md);padding:12px 14px}
+.dot{flex:none;width:44px;height:44px;border-radius:50%;background:var(--spark);border:var(--bw) solid var(--ink);display:grid;place-items:center;font-size:var(--fs-h3);animation:pulse 1.6s infinite}
+.goal-symbol{font-size:var(--fs-h2);font-weight:800}.part-icon{font-size:var(--fs-h3)}.part-label{font-size:var(--fs-sm)}.svg-battery-polarity{font-size:var(--fs-h3)}.svg-switch-state{font-size:var(--fs-sm)}.svg-gap-label{font-size:var(--fs-h2)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.btn{min-height:56px;padding:0 20px;border:var(--bw) solid var(--ink);border-radius:var(--r-md);background:var(--surface);font:inherit;font-weight:700;cursor:pointer;box-shadow:var(--depth)}
+.btn.main{background:var(--copper);color:var(--surface)}.btn[hidden]{display:none}
+.ghost{position:fixed;z-index:9;pointer-events:none;width:72px;height:72px;margin:-36px 0 0 -36px;opacity:.9}
+.win{background:var(--teal-soft);border:2px solid var(--teal);border-radius:var(--r-md);padding:10px 14px;margin-top:12px;font-weight:700}
+.win[hidden]{display:none}
+@keyframes pulse{50%{transform:scale(1.08)}}
+@keyframes flow{50%{opacity:.5}}
+@keyframes glow{50%{opacity:.55}}
+.gap{animation:glow 1s infinite}
+.flow{animation:flow .8s ease-in-out infinite alternate}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head>
+<body><main>
+<div class="top"><h1>Electricity Workbench</h1><div class="stars" id="stars" aria-label="progress"><span>Star</span><span>Star</span><span>Star</span></div></div>
+<div class="goal"><span style="font-size:var(--fs-h2)">Goal</span><div><b id="gt"></b><div id="gd"></div></div></div>
+<div class="board"><svg id="svg" viewBox="0 0 600 380" role="img" aria-label="Circuit board"></svg></div>
+<div class="tray" id="tray"></div>
+<div class="spark"><div class="dot">Spark</div><div><b>Spark</b><div id="msg"></div></div></div>
+<div class="win" id="win" hidden></div>
+<div class="row"><button class="btn" id="hint">Bulb Need a hint?</button><button class="btn" id="reset">Reset Reset</button><button class="btn main" id="next" hidden>Next challenge Next</button></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const SL=[{x:300,y:70},{x:520,y:190},{x:300,y:310},{x:80,y:190}];
+const PARTS={battery:'Battery',bulb:'Bulb',switch:'Switch',wire:'Wire'};
+const CH=[
+ {t:'Challenge 1 · Light the bulb',d:'Build a closed loop with a battery and a bulb. Fill every gap.',ok:s=>s.done&&s.bulbs>=1},
+ {t:'Challenge 2 · Add a second bulb',d:'Make a loop where two bulbs light up. Watch how bright they get.',ok:s=>s.done&&s.bulbs>=2},
+ {t:'Challenge 3 · Open and close the switch',d:'Add a switch. Turn the bulb off, then on again.',ok:s=>s.done&&s.sw&&sawOff}
+];
+let slots,ci=0,done=[false,false,false],hl=0,sawOff=false,won=false;
+function reset(){slots=[null,null,null,null];sawOff=false;won=false;hl=0;$('win').hidden=true;$('next').hidden=true;draw()}
+function ev(){const b=slots.includes('battery'),bulbs=slots.filter(x=>x==='bulb').length,empty=slots.filter(x=>!x).length,
+ sw=slots.includes('switch'),open=slots.includes('switch')&&swOpen;
+ return{b,bulbs,empty,sw,open,done:b&&!empty&&!open&&bulbs>0,full:!empty}}
+let swOpen=false;
+function part(t,x,y,lit,br){
+ const e=`<g transform="translate(${x} ${y})" data-p="${t}" style="cursor:pointer">`;
+ if(t==='battery')return e+`<rect x="-30" y="-18" width="68" height="44" rx="10" fill="var(--ink)"/><rect x="-34" y="-24" width="68" height="44" rx="10" fill="var(--copper)" stroke="var(--ink)" stroke-width="3"/><rect x="-34" y="-24" width="22" height="44" rx="10" fill="var(--spark)" stroke="var(--ink)" stroke-width="3"/><text class="svg-battery-polarity" x="2" y="4" font-weight="800" fill="var(--surface)" text-anchor="middle">+  −</text></g>`;
+ if(t==='bulb'){const g=lit?`<circle class="gap" r="${46+br*14}" fill="var(--spark)" opacity=".35"/><circle r="38" fill="var(--spark)" opacity=".5"/>`:'';
+  return e+g+`<ellipse cx="4" cy="40" rx="20" ry="7" fill="var(--ink)" opacity=".25"/><rect x="-12" y="18" width="24" height="16" rx="4" fill="var(--ink)"/><circle cy="-4" r="26" fill="${lit?'var(--spark)':'var(--paper)'}" stroke="var(--ink)" stroke-width="3"/><path d="M-8 18 L-8 4 Q0 -12 8 4 L8 18" fill="none" stroke="var(--ink)" stroke-width="3"/><circle cx="-10" cy="-14" r="5" fill="var(--surface)" opacity=".7"/></g>`}
+ if(t==='switch')return e+`<rect x="-30" y="-8" width="68" height="30" rx="8" fill="var(--ink)"/><rect x="-34" y="-14" width="68" height="30" rx="8" fill="var(--surface)" stroke="var(--ink)" stroke-width="3"/><circle cx="-22" cy="1" r="5" fill="var(--ink)"/><circle cx="22" cy="1" r="5" fill="var(--ink)"/><line x1="-22" y1="1" x2="${swOpen?14:22}" y2="${swOpen?-20:1}" stroke="${swOpen?'var(--alert)':'var(--teal)'}" stroke-width="7" stroke-linecap="round"/><text class="svg-switch-state" y="40" font-weight="800" text-anchor="middle" fill="${swOpen?'var(--alert)':'var(--teal)'}">${swOpen?'✗ OPEN':'✓ CLOSED'}</text></g>`;
+ return e+`<rect x="-34" y="-4" width="68" height="18" rx="9" fill="var(--ink)"/><rect x="-34" y="-10" width="68" height="18" rx="9" fill="var(--copper)" stroke="var(--ink)" stroke-width="3"/></g>`}
+function draw(){const s=ev();
+ let h=`<rect width="600" height="380" fill="var(--paper)"/>`;
+ for(let i=20;i<600;i+=40)for(let j=20;j<380;j+=40)h+=`<circle cx="${i}" cy="${j}" r="2" fill="var(--line)"/>`;
+ const path='M80 70H520V310H80Z';
+ h+=`<path d="${path}" transform="translate(0 7)" fill="none" stroke="var(--ink)" stroke-width="14" opacity=".25"/><path d="${path}" fill="none" stroke="var(--ink)" stroke-width="14"/><path d="${path}" fill="none" stroke="${s.done?'var(--copper)':'var(--line)'}" stroke-width="8"/>`;
+ if(s.done)h+=`<path class="flow" d="${path}" fill="none" stroke="var(--spark)" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 16"/>`;
+ slots.forEach((p,i)=>{const{x,y}=SL[i];
+  if(!p)h+=`<g class="gap" data-slot="${i}"><circle cx="${x}" cy="${y}" r="34" fill="var(--surface)" stroke="var(--alert)" stroke-width="3" stroke-dasharray="7 6"/><text class="svg-gap-label" x="${x}" y="${y+9}" font-weight="800" text-anchor="middle" fill="var(--alert)">+</text></g>`;
+  else h+=part(p,x,y,s.done&&p==='bulb',s.bulbs?1/s.bulbs:1).replace('data-p',`data-i="${i}" data-p`)});
+ $('svg').innerHTML=h;
+ const c=CH[ci];$('gt').textContent=c.t;$('gd').textContent=c.d;
+ [...$('stars').children].forEach((el,i)=>el.classList.toggle('on',done[i]));
+ if(s.sw&&s.open&&s.full)sawOff=true;
+ msg(s);
+ if(!won&&c.ok(s)){won=true;done[ci]=true;$('win').hidden=false;$('win').textContent='Challenge complete! '+(ci<2?'Next one is unlocked.':'All 3 done. Head to Explain!');$('next').hidden=ci>=2;$('next').textContent='Next challenge';draw()}}
+function msg(s){let a,b;
+ if(!slots.some(Boolean)){a='Drag parts from the tray onto the pulsing gaps.';b='Start with a battery. Every circuit needs a power source.'}
+ else if(!s.b){a='Every circuit needs a power source. Which part gives energy?';b='Drag the battery into a gap.'}
+ else if(s.empty){a='The path has gaps. Current needs a closed loop. Where does it break?';b=`${s.empty} gap${s.empty>1?'s':''} left. Fill every pulsing ring (a wire works).`}
+ else if(s.open){a='The switch is open, so current cannot pass.';b='Tap the switch to close it.'}
+ else if(!s.bulbs){a='The loop is closed, but nothing uses the energy.';b='Swap a wire for a bulb.'}
+ else{a=s.bulbs>1?'Two bulbs share the energy, so each glows dimmer.':'Loop closed! Current flows and the bulb glows.';b='Now try the goal above.'}
+ $('msg').textContent=hl?a+' Bulb '+b:a}
+// drag from tray
+$('tray').innerHTML=Object.entries(PARTS).map(([k,v])=>`<button data-k="${k}"><span style="font-size:var(--fs-h3)">${v.split(' ')[0]}</span><span style="font-size:var(--fs-sm)">${v.split(' ')[1]}</span></button>`).join('');
+let gh=null,gk=null;
+$('tray').addEventListener('pointerdown',e=>{const b=e.target.closest('button');if(!b)return;gk=b.dataset.k;gh=document.createElement('div');gh.className='ghost';gh.innerHTML=`<svg viewBox="-50 -50 100 100">${part(gk,0,0,false,1)}</svg>`;document.body.append(gh);mv(e)});
+function mv(e){if(gh){gh.style.left=e.clientX+'px';gh.style.top=e.clientY+'px'}}
+addEventListener('pointermove',mv);
+addEventListener('pointerup',e=>{if(!gh)return;gh.remove();gh=null;const r=$('svg').getBoundingClientRect(),k=600/r.width,x=(e.clientX-r.left)*k,y=(e.clientY-r.top)*k;
+ let best=-1,d=95;SL.forEach((p,i)=>{const dd=Math.hypot(p.x-x,p.y-y);if(dd<d){d=dd;best=i}});
+ if(best>=0){if(gk==='switch')swOpen=false;slots[best]=gk;draw()}gk=null});
+// tap placed part
+$('svg').addEventListener('click',e=>{const g=e.target.closest('[data-i]');if(!g)return;const i=+g.dataset.i;
+ if(slots[i]==='switch'){swOpen=!swOpen}else slots[i]=null;draw()});
+$('hint').onclick=()=>{hl=1;msg(ev())};
+$('reset').onclick=()=>{swOpen=false;reset()};
+$('next').onclick=()=>{ci=Math.min(2,ci+1);swOpen=false;reset()};
+reset();
+</script></body></html>

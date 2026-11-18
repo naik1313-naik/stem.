@@ -1,0 +1,27 @@
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test outputs
+playwright-report/
+test-results/
+coverage/

@@ -1,0 +1,22 @@
+SmartClass Buddy full project bundle
+
+Includes:
+- React + TypeScript + Vite student/teacher-facing application
+- Central plain-CSS design system and Mukta Fontsource imports
+- English/Hindi dictionaries (Hindi marked TODO-REVIEW)
+- Group Picker, Mission/Predict, Workbench, Explain, Quiz, Reflect, Pulse Board
+- SVG component icons and four-gap interactive circuit workbench
+- Deterministic circuit logic and 8 Node unit tests
+- Local attempt/hint/complete event log and local progress storage
+- Production service-worker generation for app-shell offline reopen
+- Playwright end-to-end flows and screenshot capture definitions
+- Existing FastAPI health-only backend and test
+- PowerShell start/verify scripts and product/architecture/design docs
+
+Not included:
+- node_modules or Python virtual environment
+- generated production build output
+- generated Playwright screenshots
+- package-lock.json (npm registry was unavailable in the bundle-generation environment)
+
+Run npm.cmd install in apps\web before the first local build.

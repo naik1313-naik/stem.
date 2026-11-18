@@ -1,0 +1,1 @@
+The Playwright tests are run against the production preview server so the generated service worker is available. Run `npm run build` before `npm run test:e2e`. The classroom flow test creates screenshots under the repository-level `artifacts/screenshots` folder.
