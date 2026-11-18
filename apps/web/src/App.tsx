@@ -1,13 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon, type IconName } from './components/Icon'
 import SubjectModuleFrame, { type SubjectId } from './components/SubjectModuleFrame'
+import OfflineDownloadManager from './components/OfflineDownloadManager'
 import { askTutor } from './lib/api'
 import { copy, type Language } from './content/translations'
 import { evaluateCircuit, isChallengeComplete, type CircuitSlots, type PartName } from './logic/circuit'
+import {
+  saveEvent as dbSaveEvent,
+  getEvents as dbGetEvents,
+  saveQuizResult,
+  saveActivityProgress,
+  getOfflineSparkResponse,
+  getUnsyncedQuizResults,
+  getUnsyncedActivityProgress,
+  markQuizResultSynced,
+  markActivityProgressSynced,
+  type LearningEvent,
+  type ClassId,
+} from './lib/storage'
 
-type Screen = 'dashboard' | 'subjectLab' | 'mission' | 'workbench' | 'explain' | 'quiz' | 'reflect' | 'pulse'
+type Screen = 'dashboard' | 'subjectLab' | 'mission' | 'workbench' | 'explain' | 'quiz' | 'reflect' | 'pulse' | 'offlineManager'
 type EventType = 'attempt' | 'hint' | 'complete'
-type LearningEvent = { id: string; type: EventType; screen: Screen; groupId: string; detail: string; at: string; challenge?: number; subject?: SubjectId; classId?: string; activityId?: string }
 const GROUPS = ['A', 'B', 'C', 'D']
 const SLOT_POINTS = [{ x: 300, y: 70 }, { x: 520, y: 190 }, { x: 300, y: 310 }, { x: 80, y: 190 }]
 const PARTS: PartName[] = ['battery', 'bulb', 'switch', 'wire']
@@ -22,17 +35,25 @@ function writeStored(key: string, value: unknown) {
   try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* storage may be disabled */ }
 }
 
-function AppHeader({ language, onLanguage, onPulse, onDashboard, t }: {
-  language: Language; onLanguage: (language: Language) => void; onPulse: () => void; onDashboard: () => void; t: typeof copy.en
+// Migrate localStorage events to IndexedDB on first load
+async function migrateEventsToIndexedDB() {
+  try {
+    const stored = localStorage.getItem('scb.events')
+    if (stored) {
+      const events = JSON.parse(stored) as LearningEvent[]
+      for (const event of events) {
+        await dbSaveEvent(event)
+      }
+      localStorage.removeItem('scb.events')
+    }
+  } catch {
+    // Ignore migration errors
+  }
+}
+
+function AppHeader({ language, onLanguage, onPulse, onDashboard, onOfflineManager, t, online, syncing, pendingSync }: {
+  language: Language; onLanguage: (language: Language) => void; onPulse: () => void; onDashboard: () => void; onOfflineManager: () => void; t: typeof copy.en; online: boolean; syncing: boolean; pendingSync: number
 }) {
-  const [online, setOnline] = useState(() => navigator.onLine)
-  useEffect(() => {
-    const onlineNow = () => setOnline(true)
-    const offlineNow = () => setOnline(false)
-    window.addEventListener('online', onlineNow)
-    window.addEventListener('offline', offlineNow)
-    return () => { window.removeEventListener('online', onlineNow); window.removeEventListener('offline', offlineNow) }
-  }, [])
   const speak = () => {
     if (!('speechSynthesis' in window)) return
     window.speechSynthesis.cancel()
@@ -40,18 +61,43 @@ function AppHeader({ language, onLanguage, onPulse, onDashboard, t }: {
     utterance.lang = language === 'hi' ? 'hi-IN' : 'en-IN'
     window.speechSynthesis.speak(utterance)
   }
+
+  const getStatusLabel = () => {
+    if (syncing) return t.syncing || 'Syncing...'
+    if (!online) return t.offlineStatus
+    if (pendingSync > 0) return `${t.pendingSync || 'Pending sync'} (${pendingSync})`
+    return t.online
+  }
+
+  const getStatusIcon = () => {
+    if (syncing) return 'pulse'
+    if (!online) return 'pulse'
+    if (pendingSync > 0) return 'arrow'
+    return 'check'
+  }
+
+  const getStatusClass = () => {
+    if (syncing) return 'work'
+    if (!online) return 'work'
+    if (pendingSync > 0) return 'stuck'
+    return 'ok'
+  }
+
   return <header className="app-header">
     <div className="brand">
       <div className="brand-mark"><Icon name="spark" size={26} /></div>
       <div className="brand-copy"><span className="brand-name">{t.brand}</span><span className="brand-subject">{t.subject}</span></div>
     </div>
     <div className="header-actions">
-      <span className={`status-chip ${online ? 'ok' : 'work'}`} aria-live="polite"><Icon name={online ? 'check' : 'pulse'} size={16} />{online ? t.online : t.offlineStatus}</span>
+      <span className={`status-chip ${getStatusClass()}`} aria-live="polite">
+        <Icon name={getStatusIcon()} size={16} />{getStatusLabel()}
+      </span>
       <div className="language-switch" aria-label={t.language}>
         <button type="button" aria-pressed={language === 'en'} onClick={() => onLanguage('en')}>EN</button>
         <button type="button" aria-pressed={language === 'hi'} onClick={() => onLanguage('hi')}>हिं</button>
       </div>
       <button className="icon-button" type="button" aria-label={t.speaker} title={t.speaker} onClick={speak}><Icon name="speaker" /></button>
+      <button className="icon-button" type="button" aria-label={t.offlineManager || 'Offline Learning'} title={t.offlineManager || 'Offline Learning'} onClick={onOfflineManager}><Icon name="download" /></button>
       <button className="icon-button" type="button" aria-label={t.pulse} title={t.pulse} onClick={onPulse}><Icon name="pulse" /></button>
       <button className="icon-button" type="button" aria-label={t.home} title={t.home} onClick={onDashboard}><Icon name="home" /></button>
     </div>
@@ -69,33 +115,57 @@ function ClassNav({ selectedClass, onSelect, t }: { selectedClass: string; onSel
   </nav>
 }
 
-function SubjectSparkPanel({ subject, selectedClass, language, t }: {
-  subject: SubjectId; selectedClass: string; language: Language; t: typeof copy.en
+function SubjectSparkPanel({ subject, selectedClass, language, t, online }: {
+  subject: SubjectId; selectedClass: string; language: Language; t: typeof copy.en; online: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState('')
   const [loading, setLoading] = useState(false)
-  const [offline, setOffline] = useState(false)
+  const [offlineMode, setOfflineMode] = useState(false)
 
   const submit = async () => {
     if (!question.trim()) return
     setLoading(true)
     setAnswer('')
     try {
-      const response = await askTutor({
-        subject,
-        class_id: selectedClass,
-        language,
-        question: question.trim(),
-      })
-      setAnswer(response.answer)
-      setOffline(!response.ai_used)
+      if (online) {
+        const response = await askTutor({
+          subject,
+          class_id: selectedClass,
+          language,
+          question: question.trim(),
+        })
+        setAnswer(response.answer)
+        // Check if we got an actual AI response or a fallback
+        const isFallback = !response.ai_used
+        setOfflineMode(isFallback)
+        // Show error context if there was a specific error
+        if (isFallback && response.error_type) {
+          const errorMessages: Record<string, string> = {
+            invalid_api_key: "Spark is unavailable: Invalid API key. Using offline guidance.",
+            forbidden: "Spark is unavailable: API access denied. Using offline guidance.",
+            rate_limit: "Spark is busy: Too many requests. Using offline guidance.",
+            network_error: "Spark cannot connect to AI service. Using offline guidance.",
+            timeout: "Spark request timed out. Using offline guidance.",
+            server_error: "Spark AI service error. Using offline guidance.",
+            api_error: "Spark AI error. Using offline guidance.",
+            invalid_request: "Spark request error. Using offline guidance.",
+            unknown: "Spark error. Using offline guidance.",
+          }
+          const errorMsg = errorMessages[response.error_type] || `Spark unavailable (${response.error_type}). Using offline guidance.`
+          setAnswer((prev) => prev + `\n\n— ${errorMsg}`)
+        }
+      } else {
+        // Offline fallback response
+        const offlineAnswer = getOfflineSparkResponse(subject, language)
+        setAnswer(offlineAnswer)
+        setOfflineMode(true)
+      }
     } catch {
-      setAnswer(language === 'hi'
-        ? 'स्पार्क अभी उपलब्ध नहीं है। अनुमान लगाएँ, एक वर्चुअल सेटिंग बदलें और परिणाम की तुलना करें।'
-        : 'Spark is unavailable. Make a prediction, change one virtual setting, and compare the result.')
-      setOffline(true)
+      const offlineAnswer = getOfflineSparkResponse(subject, language)
+      setAnswer(offlineAnswer)
+      setOfflineMode(true)
     } finally {
       setLoading(false)
     }
@@ -115,8 +185,8 @@ function SubjectSparkPanel({ subject, selectedClass, language, t }: {
       <button className="btn btn-spark" type="button" disabled={loading || !question.trim()} onClick={submit}>
         {loading ? t.sparkThinking : t.sparkAsk}<Icon name="spark" size={20} />
       </button>
-      {answer && <div className={offline ? 'panel-spark' : 'panel-success'} role="status">
-        {offline && <strong>{t.sparkOffline}: </strong>}
+      {answer && <div className={offlineMode ? 'panel-spark' : 'panel-success'} role="status">
+        {offlineMode && <strong>{t.sparkOffline}: </strong>}
         <span>{answer}</span>
       </div>}
     </div>}
@@ -142,6 +212,8 @@ function SubjectDashboard({ onOpenSubject, t }: { onOpenSubject: (subject: Subje
     </div>
   </section>
 }
+
+// ... [MissionScreen, CircuitPart, WorkbenchScreen, ExplainScreen, QuizScreen, ReflectScreen, PulseBoard components remain the same]
 
 function MissionScreen({ language, prediction, saved, onPrediction, onSave, t }: {
   language: Language; prediction: number | null; saved: boolean; onPrediction: (index: number) => void; onSave: () => void; t: typeof copy.en
@@ -487,17 +559,128 @@ export default function App() {
   const [prediction, setPrediction] = useState<number | null>(() => readStored('scb.prediction', null))
   const [predictionSaved, setPredictionSaved] = useState(() => readStored('scb.predictionSaved', false))
   const [reflection, setReflection] = useState(() => readStored('scb.reflection', ''))
-  const [events, setEvents] = useState<LearningEvent[]>(() => readStored('scb.events', []))
+  const [events, setEvents] = useState<LearningEvent[]>([])
   const [quizScore, setQuizScore] = useState<number | null>(null)
+  const [online, setOnline] = useState(() => navigator.onLine)
+  const [syncing, setSyncing] = useState(false)
+  const [pendingSyncCount, setPendingSyncCount] = useState(0)
+  const [showOfflineManager, setShowOfflineManager] = useState(false)
   const t = copy[language]
+
+  // Online/offline detection with actual connectivity check
+  useEffect(() => {
+    let checkInterval: ReturnType<typeof setInterval>
+
+    const checkConnectivity = async () => {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 3000)
+        await fetch('/manifest.webmanifest', { method: 'HEAD', cache: 'no-cache', signal: controller.signal })
+        clearTimeout(timeoutId)
+        setOnline(true)
+      } catch {
+        setOnline(false)
+      }
+    }
+
+    const onlineNow = () => { setOnline(true); checkPendingSync() }
+    const offlineNow = () => setOnline(false)
+
+    window.addEventListener('online', onlineNow)
+    window.addEventListener('offline', offlineNow)
+
+    // Initial check
+    checkConnectivity()
+
+    // Periodic connectivity check (every 30 seconds)
+    checkInterval = setInterval(checkConnectivity, 30000)
+
+    return () => {
+      window.removeEventListener('online', onlineNow)
+      window.removeEventListener('offline', offlineNow)
+      clearInterval(checkInterval)
+    }
+  }, [])
+
+  // Load events from IndexedDB on mount
+  useEffect(() => {
+    const loadEvents = async () => {
+      await migrateEventsToIndexedDB()
+      const storedEvents = await dbGetEvents(groupId)
+      setEvents(storedEvents)
+      checkPendingSync()
+    }
+    loadEvents()
+  }, [groupId])
+
+  const checkPendingSync = async () => {
+    try {
+      const [quizResults, activityProgress] = await Promise.all([
+        getUnsyncedQuizResults(),
+        getUnsyncedActivityProgress(),
+      ])
+      setPendingSyncCount(quizResults.length + activityProgress.length)
+    } catch {
+      // Ignore errors
+    }
+  }
+
+  const syncProgress = useCallback(async () => {
+    if (!online || syncing) return
+    setSyncing(true)
+    try {
+      // Sync quiz results
+      const unsyncedQuizzes = await getUnsyncedQuizResults()
+      for (const quiz of unsyncedQuizzes) {
+        try {
+          await fetch('/api/v1/progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ syncType: 'quiz', ...quiz }),
+          })
+          await markQuizResultSynced(quiz.id)
+        } catch {
+          // Keep in queue for next sync
+        }
+      }
+
+      // Sync activity progress
+      const unsyncedActivities = await getUnsyncedActivityProgress()
+      for (const activity of unsyncedActivities) {
+        try {
+          await fetch('/api/v1/progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ syncType: 'activity', ...activity }),
+          })
+          await markActivityProgressSynced(activity.id)
+        } catch {
+          // Keep in queue for next sync
+        }
+      }
+
+      await checkPendingSync()
+    } finally {
+      setSyncing(false)
+    }
+  }, [online, syncing])
+
+  // Trigger sync when coming online
+  useEffect(() => {
+    if (online && !syncing && pendingSyncCount > 0) {
+      syncProgress()
+    }
+  }, [online, syncing, pendingSyncCount, syncProgress])
 
   const changeLanguage = (next: Language) => { setLanguage(next); writeStored('scb.language', next) }
   const openSubject = (subject: SubjectId) => { setSelectedSubject(subject); writeStored('scb.subject', subject); setScreen('subjectLab') }
   const selectSubjectClass = (next: string) => { setSelectedClass(next); writeStored('scb.subjectClass', next); setScreen('subjectLab') }
   const logEvent = useCallback((type: EventType, eventScreen: Screen, detail: string, challenge?: number) => {
+    const event: LearningEvent = { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, type, screen: eventScreen, groupId, detail, at: new Date().toISOString(), challenge }
     setEvents((current) => {
-      const next = [{ id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, type, screen: eventScreen, groupId, detail, at: new Date().toISOString(), challenge }, ...current].slice(0, 300)
-      writeStored('scb.events', next)
+      const next = [event, ...current].slice(0, 300)
+      // Also save to IndexedDB
+      dbSaveEvent(event)
       return next
     })
   }, [groupId])
@@ -510,18 +693,43 @@ export default function App() {
       const detail = event.type === 'quiz_completed'
         ? `${event.activityId}-quiz-${event.score ?? 0}`
         : `${event.activityId}-${event.type}`
-      const next = [{
+      const learningEvent: LearningEvent = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         type: nextType,
-        screen: 'subjectLab' as Screen,
+        screen: 'subjectLab',
         groupId,
         detail,
         at: new Date().toISOString(),
         subject: event.subject,
-        classId: event.classId,
+        classId: event.classId as ClassId,
         activityId: event.activityId,
-      }, ...current].slice(0, 300)
-      writeStored('scb.events', next)
+      }
+      // Save to IndexedDB
+      dbSaveEvent(learningEvent)
+      if (event.type === 'quiz_completed' && event.score !== undefined) {
+        saveQuizResult({
+          id: learningEvent.id,
+          subject: event.subject,
+          classId: event.classId as any,
+          activityId: event.activityId,
+          score: event.score,
+          total: 100,
+          completedAt: learningEvent.at,
+          synced: false,
+        })
+      } else {
+        saveActivityProgress({
+          id: learningEvent.id,
+          subject: event.subject,
+          classId: event.classId as any,
+          activityId: event.activityId,
+          type: event.type,
+          score: event.score,
+          completedAt: learningEvent.at,
+          synced: false,
+        })
+      }
+      const next = [learningEvent, ...current].slice(0, 300)
       return next
     })
   }, [groupId])
@@ -536,10 +744,23 @@ export default function App() {
     logEvent('complete', 'reflect', 'reflection-saved')
     setScreen('pulse')
   }
+
+  const handleOfflineManagerClose = () => setShowOfflineManager(false)
+
   return <div className="app-shell">
-    <AppHeader language={language} onLanguage={changeLanguage} onPulse={() => setScreen('pulse')} onDashboard={() => setScreen('dashboard')} t={t} />
+    <AppHeader
+      language={language}
+      onLanguage={changeLanguage}
+      onPulse={() => setScreen('pulse')}
+      onDashboard={() => setScreen('dashboard')}
+      onOfflineManager={() => setShowOfflineManager(true)}
+      t={t}
+      online={online}
+      syncing={syncing}
+      pendingSync={pendingSyncCount}
+    />
     {screen === 'subjectLab' && <ClassNav selectedClass={selectedClass} onSelect={selectSubjectClass} t={t} />}
-    {screen === 'subjectLab' && <SubjectSparkPanel subject={selectedSubject} selectedClass={selectedClass} language={language} t={t} />}
+    {screen === 'subjectLab' && <SubjectSparkPanel subject={selectedSubject} selectedClass={selectedClass} language={language} t={t} online={online} />}
     {screen === 'subjectLab' ? <SubjectModuleFrame subject={selectedSubject} selectedClass={selectedClass} language={language} onProgress={logSubjectProgress} /> : <main>
       {screen === 'dashboard' && <SubjectDashboard onOpenSubject={openSubject} t={t} />}
       {screen === 'mission' && <MissionScreen language={language} prediction={prediction} saved={predictionSaved} onPrediction={(value) => { setPrediction(value); setPredictionSaved(false) }} onSave={savePrediction} t={t} />}
@@ -549,6 +770,7 @@ export default function App() {
       {screen === 'reflect' && <ReflectScreen reflection={reflection} onChange={(value) => { setReflection(value); writeStored('scb.reflection', value) }} onSave={saveReflection} t={t} />}
       {screen === 'pulse' && <PulseBoard events={events} groupId={groupId} onBack={() => setScreen('mission')} t={t} />}
     </main>}
+    {showOfflineManager && <OfflineDownloadManager language={language} onClose={handleOfflineManagerClose} />}
     <p className="footer-note">{t.offline}{quizScore !== null ? ` · ${t.score}: ${quizScore}/5` : ''}</p>
   </div>
 }

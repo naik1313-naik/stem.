@@ -1,9 +1,102 @@
 {
   "name": "SmartClass Buddy",
   "short_name": "SmartClass",
-  "description": "Offline-first STEM learning for school students.",
+  "description": "Offline-first STEM learning for school students. Explore Physics, Chemistry, Mathematics and Biology with interactive simulations.",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "lang": "en",
-  "categories": ["education"]
+  "categories": ["education"],
+  "theme_color": "#12766B",
+  "background_color": "#FBF6EA",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Physics Lab",
+      "short_name": "Physics",
+      "description": "Open Physics Virtual Lab for Classes 6-8",
+      "url": "/?subject=physics",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Chemistry Lab",
+      "short_name": "Chemistry",
+      "description": "Open Chemistry Virtual Lab for Classes 6-8",
+      "url": "/?subject=chemistry",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mathematics Lab",
+      "short_name": "Mathematics",
+      "description": "Open Mathematics Virtual Lab for Classes 6-8",
+      "url": "/?subject=mathematics",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Biology Lab",
+      "short_name": "Biology",
+      "description": "Open Biology Virtual Lab for Classes 6-8",
+      "url": "/?subject=biology",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
 }

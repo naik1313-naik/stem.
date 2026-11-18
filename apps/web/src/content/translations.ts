@@ -2,7 +2,7 @@ export type Language = 'en' | 'hi'
 
 export const copy = {
   en: {
-    brand: 'SmartClass Buddy', subject: 'PHYSICS · ELECTRICITY', language: 'Language', english: 'English', hindi: 'हिन्दी', pulse: 'Pulse Board',
+    brand: 'SmartClass Buddy', subject: 'SmartClass Buddy', language: 'Language', english: 'English', hindi: 'हिन्दी', pulse: 'Pulse Board',
     physicsEyebrow: 'SMARTCLASS BUDDY / PHYSICS', physicsLabTitle: 'Physics Virtual Lab', openPhysicsLab: 'Open Physics Virtual Lab', physicsEntryIntro: 'Explore motion, light, electricity, heat, sound and more through interactive Class 6–8 models.', backToSmartClass: 'Back to SmartClass Buddy', physicsLoadError: 'Physics Virtual Lab could not be loaded', physicsLoadErrorBody: 'Check that the Physics lab is available, then try again.', retry: 'Retry',
     subjectsTitle: 'Choose a subject', subjectsIntro: 'Explore learning labs for Classes 6–8.', subjectPhysics: 'Physics', subjectChemistry: 'Chemistry', subjectMathematics: 'Mathematics', subjectBiology: 'Biology', openSubject: 'Open lab',
     sparkTutorTitle: 'Ask Spark', sparkTutorPlaceholder: 'Ask about this subject or activity…', sparkAsk: 'Ask Spark', sparkThinking: 'Spark is thinking…', sparkOffline: 'Offline guidance',
@@ -27,10 +27,11 @@ export const copy = {
     reflectTitle: 'Think back on your experiment', reflectIntro: 'A scientist records observations. What did you notice when the switch opened?', reflectPlaceholder: 'I noticed that…', saveReflection: 'Save reflection', reflectionSaved: 'Reflection saved', completeLesson: 'Complete lesson',
     pulseTitle: 'Class Pulse Board', pulseIntro: 'A quick classroom view of group activity and lesson progress.', activity: 'Workbench attempts', hintsUsed: 'Hints used', challengesDone: 'Challenges completed', recentEvents: 'Recent learning events', eventAttempt: 'Tried a circuit action', eventHint: 'Asked Spark for a hint', eventComplete: 'Completed a learning step', noEvents: 'No activity recorded yet. Start a mission to see progress here.', backToLesson: 'Back to lesson', switchGroup: 'Change group', groupProgress: 'Group progress',
     offline: 'Progress is saved on this device', online: 'Online', offlineStatus: 'No network connection', speaker: 'Read this screen aloud', mute: 'Stop reading', home: 'Choose subject', back: 'Back', help: 'Help',
+    offlineManager: 'Offline Learning', syncing: 'Syncing...', pendingSync: 'Pending sync',
   },
   hi: {
     // TODO-REVIEW: Have a Hindi educator review all translations before classroom release.
-    brand: 'स्मार्टक्लास बडी', subject: 'भौतिक विज्ञान · बिजली', language: 'भाषा', english: 'English', hindi: 'हिन्दी', pulse: 'कक्षा प्रगति',
+    brand: 'स्मार्टक्लास बडी', subject: 'स्मार्टक्लास बडी', language: 'भाषा', english: 'English', hindi: 'हिन्दी', pulse: 'कक्षा प्रगति',
     physicsEyebrow: 'स्मार्टक्लास बडी / भौतिक विज्ञान', physicsLabTitle: 'भौतिक विज्ञान वर्चुअल लैब', openPhysicsLab: 'भौतिक विज्ञान वर्चुअल लैब खोलें', physicsEntryIntro: 'कक्षा ६–८ के गति, प्रकाश, बिजली, ऊष्मा, ध्वनि और अन्य इंटरैक्टिव मॉडल खोजें।', backToSmartClass: 'स्मार्टक्लास बडी पर लौटें', physicsLoadError: 'भौतिक विज्ञान वर्चुअल लैब नहीं खुल सकी', physicsLoadErrorBody: 'जाँचें कि भौतिक विज्ञान लैब उपलब्ध है और फिर कोशिश करें।', retry: 'फिर कोशिश करें',
     subjectsTitle: 'विषय चुनें', subjectsIntro: 'कक्षा ६–८ के लिए सीखने की प्रयोगशालाएँ देखें।', subjectPhysics: 'भौतिक विज्ञान', subjectChemistry: 'रसायन विज्ञान', subjectMathematics: 'गणित', subjectBiology: 'जीव विज्ञान', openSubject: 'लैब खोलें',
     sparkTutorTitle: 'स्पार्क से पूछें', sparkTutorPlaceholder: 'इस विषय या गतिविधि के बारे में पूछें…', sparkAsk: 'स्पार्क से पूछें', sparkThinking: 'स्पार्क सोच रहा है…', sparkOffline: 'ऑफ़लाइन मार्गदर्शन',
@@ -55,5 +56,6 @@ export const copy = {
     reflectTitle: 'अपने प्रयोग के बारे में सोचो', reflectIntro: 'वैज्ञानिक अपने अवलोकन लिखते हैं। स्विच खोलने पर तुमने क्या देखा?', reflectPlaceholder: 'मैंने देखा कि…', saveReflection: 'चिंतन सहेजें', reflectionSaved: 'चिंतन सहेज लिया गया', completeLesson: 'पाठ पूरा करें',
     pulseTitle: 'कक्षा प्रगति बोर्ड', pulseIntro: 'समूहों की गतिविधि और पाठ की प्रगति एक नज़र में देखें।', activity: 'वर्कबेंच प्रयास', hintsUsed: 'संकेत', challengesDone: 'पूरी चुनौतियाँ', recentEvents: 'हाल की सीखने की गतिविधियाँ', noEvents: 'अभी कोई गतिविधि दर्ज नहीं है। प्रगति देखने के लिए मिशन शुरू करें।', backToLesson: 'पाठ पर लौटें', switchGroup: 'समूह बदलें', groupProgress: 'समूह की प्रगति', eventAttempt: 'परिपथ में बदलाव करने की कोशिश की', eventHint: 'स्पार्क से संकेत माँगा', eventComplete: 'सीखने का एक चरण पूरा किया',
     offline: 'प्रगति इस डिवाइस पर सहेजी जाती है', online: 'ऑनलाइन', offlineStatus: 'इंटरनेट उपलब्ध नहीं है', speaker: 'यह स्क्रीन सुनें', mute: 'पढ़ना बंद करें', home: 'विषय चुनें', back: 'वापस', help: 'मदद',
+    offlineManager: 'ऑफ़लाइन सीखना', syncing: 'सिंक हो रहा है...', pendingSync: 'सिंक लंबित',
   },
 }

@@ -1,6 +1,7 @@
 export type TutorResponse = {
   answer: string;
   ai_used: boolean;
+  error_type?: string;
   subject: string;
   class_id: string;
   language: "en" | "hi";
