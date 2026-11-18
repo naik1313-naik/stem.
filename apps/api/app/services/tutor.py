@@ -5,7 +5,7 @@ import logging
 import urllib.error
 import urllib.request
 
-from app.settings import get_gemini_api_key
+from app.settings import get_groq_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +41,9 @@ class TutorError(Exception):
 
 
 def tutor_answer(payload) -> tuple[str, bool]:
-    api_key = get_gemini_api_key()
+    api_key = get_groq_api_key()
     if not api_key:
-        logger.warning("GEMINI_API_KEY not configured, using scripted fallback")
+        logger.warning("GROQ_API_KEY not configured, using scripted fallback")
         return scripted_answer(payload.subject, payload.language, payload.topic), False
 
     subject_name = payload.subject.title()
@@ -57,56 +57,58 @@ def tutor_answer(payload) -> tuple[str, bool]:
         f"Student question: {payload.question}"
     )
     body = json.dumps({
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500},
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3,
+        "max_tokens": 500,
     }).encode("utf-8")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={api_key}"
+    url = "https://api.groq.com/openai/v1/chat/completions"
     request = urllib.request.Request(
         url,
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
         method="POST",
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             if response.status != 200:
-                raise TutorError(f"Gemini API returned status {response.status}", "api_error")
+                raise TutorError(f"Groq API returned status {response.status}", "api_error")
             data = json.loads(response.read().decode("utf-8"))
         # Validate response structure
-        if not data.get("candidates") or not data["candidates"][0].get("content", {}).get("parts"):
-            raise TutorError("Invalid response structure from Gemini API", "api_error")
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        if not data.get("choices") or not data["choices"][0].get("message", {}).get("content"):
+            raise TutorError("Invalid response structure from Groq API", "api_error")
+        text = data["choices"][0]["message"]["content"]
         # Decode any HTML entities that might have been encoded
         text = text.replace("&", "&").replace("<", "<").replace(">", ">").replace(chr(34)*3, "\"").replace("'", "'").replace("&#xA0;", " ").replace("&#x43;", "C")
         return text.strip(), True
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8", errors="ignore")
-        logger.error(f"Gemini API HTTP error {e.code}: {error_body}")
+        logger.error(f"Groq API HTTP error {e.code}: {error_body}")
         if e.code == 400:
-            raise TutorError("Invalid request to Gemini API (check API key and model)", "invalid_request")
+            raise TutorError("Invalid request to Groq API (check API key and model)", "invalid_request")
         elif e.code == 401:
-            raise TutorError("Invalid Gemini API key", "invalid_api_key")
+            raise TutorError("Invalid Groq API key", "invalid_api_key")
         elif e.code == 403:
-            raise TutorError("Gemini API access forbidden (check API key permissions)", "forbidden")
+            raise TutorError("Groq API access forbidden (check API key permissions)", "forbidden")
         elif e.code == 429:
-            raise TutorError("Gemini API rate limit exceeded", "rate_limit")
+            raise TutorError("Groq API rate limit exceeded", "rate_limit")
         elif e.code >= 500:
-            raise TutorError("Gemini API server error", "server_error")
+            raise TutorError("Groq API server error", "server_error")
         else:
-            raise TutorError(f"Gemini API error: {e.code}", "api_error")
+            raise TutorError(f"Groq API error: {e.code}", "api_error")
     except urllib.error.URLError as e:
-        logger.error(f"Gemini API network error: {e}")
-        raise TutorError("Cannot reach Gemini API (network error)", "network_error")
+        logger.error(f"Groq API network error: {e}")
+        raise TutorError("Cannot reach Groq API (network error)", "network_error")
     except json.JSONDecodeError as e:
-        logger.error(f"Gemini API JSON decode error: {e}")
-        raise TutorError("Invalid JSON response from Gemini API", "api_error")
+        logger.error(f"Groq API JSON decode error: {e}")
+        raise TutorError("Invalid JSON response from Groq API", "api_error")
     except TimeoutError:
-        logger.error("Gemini API request timeout")
-        raise TutorError("Gemini API request timed out", "timeout")
+        logger.error("Groq API request timeout")
+        raise TutorError("Groq API request timed out", "timeout")
     except TutorError:
         raise
     except BaseException as e:  # noqa: BLE001 - catch-all for unexpected errors
-        logger.error(f"Unexpected error calling Gemini API: {e}")
+        logger.error(f"Unexpected error calling Groq API: {e}")
         raise TutorError(f"Unexpected error: {e}", "unknown")
 
 
@@ -120,6 +122,6 @@ def tutor_answer_with_fallback(payload) -> tuple[str, bool, str | None]:
         answer, ai_used = tutor_answer(payload)
         return answer, ai_used, None
     except TutorError as e:
-        logger.warning(f"Gemini API failed ({e.error_type}), using scripted fallback: {e}")
+        logger.warning(f"Groq API failed ({e.error_type}), using scripted fallback: {e}")
         fallback = scripted_answer(payload.subject, payload.language, payload.topic)
         return fallback, False, e.error_type
